@@ -1,0 +1,346 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Repository Explorer</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    padding: 30px 15px;
+    background: #101522;
+    color: #eef3ff;
+    font-family: Arial, sans-serif;
+}
+
+.container {
+    max-width: 1000px;
+    margin: auto;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+h1 { color: #82aaff; }
+
+.muted { color: #9ba9c1; }
+
+.panel {
+    background: #1b2333;
+    border: 1px solid #344158;
+    border-radius: 14px;
+    padding: 20px;
+}
+
+input {
+    width: 100%;
+    padding: 13px;
+    background: #101522;
+    color: white;
+    border: 1px solid #475773;
+    border-radius: 8px;
+    margin: 12px 0;
+}
+
+button {
+    padding: 12px 20px;
+    border: 0;
+    background: #548aff;
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+button:hover { background: #356fdd; }
+
+.file {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    padding: 13px;
+    border-bottom: 1px solid #303b50;
+}
+
+.file:last-child { border-bottom: 0; }
+
+.file-icon {
+    font-size: 25px;
+    width: 35px;
+    text-align: center;
+}
+
+.file-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.file-name {
+    font-weight: bold;
+    overflow-wrap: anywhere;
+}
+
+.file-path {
+    color: #94a4c0;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+    margin-top: 5px;
+}
+
+.file-size {
+    color: #8999b4;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.file a {
+    color: #83adff;
+    text-decoration: none;
+}
+
+.file a:hover { text-decoration: underline; }
+
+#status {
+    margin: 20px 0;
+    color: #aebbd2;
+    text-align: center;
+}
+
+#files {
+    margin-top: 20px;
+}
+
+@media(max-width:600px) {
+    .file { flex-wrap: wrap; }
+    .file a { margin-left: 48px; }
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<header>
+    <h1>📁 Repository Explorer</h1>
+    <p class="muted">
+        Alle Dateien deines GitHub-Repositories an einem Ort.
+    </p>
+</header>
+
+<div class="panel">
+
+    <h3>Repository</h3>
+    <p class="muted" id="repoName">Repository wird erkannt...</p>
+
+    <input
+        id="search"
+        type="text"
+        placeholder="Dateien durchsuchen..."
+    >
+
+    <p id="status">Lade Dateien...</p>
+
+    <div id="files"></div>
+
+</div>
+</div>
+
+<script>
+
+// GitHub Pages Repository automatisch erkennen
+
+const host = location.hostname;
+const pathParts = location.pathname.split("/").filter(Boolean);
+
+let owner = host.split(".")[0];
+
+let repo = pathParts.length > 0
+    ? pathParts[0]
+    : owner + ".github.io";
+
+const api =
+    `https://api.github.com/repos/${owner}/${repo}`;
+
+let allFiles = [];
+let branch = "";
+
+document.getElementById("repoName").textContent =
+    owner + "/" + repo;
+
+
+// Dateityp und Icon bestimmen
+
+function getIcon(filename) {
+    const ext = filename.split(".").pop().toLowerCase();
+
+    const icons = {
+        png: "🖼️", jpg: "🖼️", jpeg: "🖼️",
+        webp: "🖼️", gif: "🖼️", svg: "🖼️",
+        html: "🌐", htm: "🌐",
+        css: "🎨",
+        js: "⚙️", mjs: "⚙️",
+        json: "📋",
+        pdf: "📕",
+        zip: "📦", rar: "📦", "7z": "📦",
+        txt: "📄", md: "📝",
+        mp3: "🎵", wav: "🎵",
+        mp4: "🎬", webm: "🎬",
+        csv: "📊",
+        xml: "📋"
+    };
+
+    return icons[ext] || "📄";
+}
+
+function formatSize(bytes) {
+    if (bytes === undefined) return "";
+
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024)
+        return (bytes / 1024).toFixed(1) + " KB";
+
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+
+// Dateien anzeigen
+
+function displayFiles(list) {
+    const container = document.getElementById("files");
+    container.innerHTML = "";
+
+    if (list.length === 0) {
+        container.textContent = "Keine Dateien gefunden.";
+        return;
+    }
+
+    list.forEach(file => {
+        const row = document.createElement("div");
+        row.className = "file";
+
+        const icon = document.createElement("div");
+        icon.className = "file-icon";
+        icon.textContent = getIcon(file.path);
+
+        const info = document.createElement("div");
+        info.className = "file-info";
+
+        const name = document.createElement("div");
+        name.className = "file-name";
+        name.textContent = file.path.split("/").pop();
+
+        const path = document.createElement("div");
+        path.className = "file-path";
+        path.textContent = file.path;
+
+        info.appendChild(name);
+        info.appendChild(path);
+
+        const size = document.createElement("div");
+        size.className = "file-size";
+        size.textContent = formatSize(file.size);
+
+        const link = document.createElement("a");
+
+        const encodedBranch = branch.split("/")
+            .map(encodeURIComponent).join("/");
+
+        const encodedPath = file.path.split("/")
+            .map(encodeURIComponent).join("/");
+
+        link.href =
+            `https://github.com/${owner}/${repo}/blob/${encodedBranch}/${encodedPath}`;
+
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = "Öffnen ↗";
+
+        row.appendChild(icon);
+        row.appendChild(info);
+        row.appendChild(size);
+        row.appendChild(link);
+
+        container.appendChild(row);
+    });
+}
+
+
+// Alle Dateien aus dem Repository laden
+
+async function loadFiles() {
+    const status = document.getElementById("status");
+
+    try {
+        const repoResponse = await fetch(api);
+
+        if (!repoResponse.ok) {
+            throw new Error(
+                "Repository nicht gefunden oder nicht öffentlich."
+            );
+        }
+
+        const repoData = await repoResponse.json();
+        branch = repoData.default_branch;
+
+        const treeResponse = await fetch(
+            `${api}/git/trees/${encodeURIComponent(branch)}?recursive=1`
+        );
+
+        if (!treeResponse.ok) {
+            throw new Error("Dateiliste konnte nicht geladen werden.");
+        }
+
+        const tree = await treeResponse.json();
+
+        allFiles = tree.tree.filter(item =>
+            item.type === "blob"
+        );
+
+        status.textContent =
+            allFiles.length + " Dateien gefunden.";
+
+        if (tree.truncated) {
+            status.textContent +=
+                " Achtung: Die GitHub-Dateiliste wurde abgeschnitten.";
+        }
+
+        displayFiles(allFiles);
+
+    } catch (error) {
+        status.textContent = "Fehler: " + error.message;
+    }
+}
+
+
+// Live-Suche
+
+document.getElementById("search").addEventListener(
+    "input",
+    function() {
+        const query = this.value.toLowerCase();
+
+        const filtered = allFiles.filter(file =>
+            file.path.toLowerCase().includes(query)
+        );
+
+        displayFiles(filtered);
+
+        document.getElementById("status").textContent =
+            filtered.length + " von " + allFiles.length +
+            " Dateien angezeigt.";
+    }
+);
+
+loadFiles();
+
+</script>
+
+</body>
+</html>
