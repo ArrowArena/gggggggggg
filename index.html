@@ -3,7 +3,7 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Repository Explorer</title>
 
 <style>
@@ -11,286 +11,216 @@
 
 body {
     margin: 0;
-    padding: 30px 15px;
-    background: #101522;
-    color: #eef3ff;
+    padding: 35px 20px;
     font-family: Arial, sans-serif;
+    background: #10131c;
+    color: #f1f3f9;
 }
 
 .container {
-    max-width: 1000px;
+    max-width: 950px;
     margin: auto;
 }
 
-header {
-    text-align: center;
-    margin-bottom: 30px;
+h1 {
+    font-size: 32px;
+    margin-bottom: 8px;
 }
 
-h1 { color: #82aaff; }
+.subtitle {
+    color: #9ca5b8;
+    margin-bottom: 25px;
+}
 
-.muted { color: #9ba9c1; }
-
-.panel {
-    background: #1b2333;
-    border: 1px solid #344158;
-    border-radius: 14px;
-    padding: 20px;
+.top {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
 }
 
 input {
-    width: 100%;
-    padding: 13px;
-    background: #101522;
+    flex: 1;
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid #30384a;
+    border-radius: 9px;
+    background: #191f2d;
     color: white;
-    border: 1px solid #475773;
-    border-radius: 8px;
-    margin: 12px 0;
+    font-size: 15px;
 }
 
 button {
-    padding: 12px 20px;
+    padding: 12px 18px;
     border: 0;
-    background: #548aff;
+    border-radius: 9px;
+    background: #526bea;
     color: white;
-    border-radius: 8px;
     cursor: pointer;
-    font-weight: bold;
 }
 
-button:hover { background: #356fdd; }
+.info {
+    color: #9ca5b8;
+    margin-bottom: 13px;
+    font-size: 14px;
+}
 
 .file {
     display: flex;
     align-items: center;
     gap: 13px;
-    padding: 13px;
-    border-bottom: 1px solid #303b50;
+    padding: 15px;
+    margin-bottom: 9px;
+    background: #191f2d;
+    border: 1px solid #2b3446;
+    border-radius: 10px;
+    color: white;
+    text-decoration: none;
+    transition: .15s;
 }
 
-.file:last-child { border-bottom: 0; }
-
-.file-icon {
-    font-size: 25px;
-    width: 35px;
-    text-align: center;
+.file:hover {
+    background: #252e41;
+    border-color: #657cf5;
+    transform: translateY(-1px);
 }
 
-.file-info {
+.icon {
+    font-size: 24px;
+}
+
+.details {
     flex: 1;
     min-width: 0;
 }
 
-.file-name {
+.filename {
     font-weight: bold;
     overflow-wrap: anywhere;
 }
 
-.file-path {
-    color: #94a4c0;
+.path {
+    color: #929db2;
     font-size: 12px;
-    overflow-wrap: anywhere;
     margin-top: 5px;
+    overflow-wrap: anywhere;
 }
 
-.file-size {
-    color: #8999b4;
+.size {
+    color: #9ca5b8;
     font-size: 12px;
     white-space: nowrap;
 }
 
-.file a {
-    color: #83adff;
-    text-decoration: none;
-}
-
-.file a:hover { text-decoration: underline; }
-
-#status {
-    margin: 20px 0;
-    color: #aebbd2;
+.empty {
+    padding: 30px;
+    color: #aab3c5;
     text-align: center;
 }
 
-#files {
-    margin-top: 20px;
-}
-
-@media(max-width:600px) {
-    .file { flex-wrap: wrap; }
-    .file a { margin-left: 48px; }
+@media(max-width: 500px) {
+    .size { display: none; }
+    h1 { font-size: 25px; }
 }
 </style>
 </head>
 
 <body>
-
 <div class="container">
 
-<header>
     <h1>📁 Repository Explorer</h1>
-    <p class="muted">
-        Alle Dateien deines GitHub-Repositories an einem Ort.
-    </p>
-</header>
+    <div class="subtitle">
+        Alle Dateien und Ordner an einem Ort
+    </div>
 
-<div class="panel">
+    <div class="top">
+        <input
+            id="search"
+            type="text"
+            placeholder="Dateien durchsuchen..."
+        >
+        <button onclick="loadFiles()">↻</button>
+    </div>
 
-    <h3>Repository</h3>
-    <p class="muted" id="repoName">Repository wird erkannt...</p>
-
-    <input
-        id="search"
-        type="text"
-        placeholder="Dateien durchsuchen..."
-    >
-
-    <p id="status">Lade Dateien...</p>
+    <div class="info" id="status">
+        Repository wird geladen...
+    </div>
 
     <div id="files"></div>
 
 </div>
-</div>
 
 <script>
-
-// GitHub Pages Repository automatisch erkennen
-
-const host = location.hostname;
-const pathParts = location.pathname.split("/").filter(Boolean);
-
-let owner = host.split(".")[0];
-
-let repo = pathParts.length > 0
-    ? pathParts[0]
-    : owner + ".github.io";
-
-const api =
-    `https://api.github.com/repos/${owner}/${repo}`;
+const OWNER = "arrowarena";
+const REPO = "gggggggggg";
 
 let allFiles = [];
-let branch = "";
+let branch = "main";
 
-document.getElementById("repoName").textContent =
-    owner + "/" + repo;
+function encodePath(path) {
+    return path.split("/")
+        .map(encodeURIComponent)
+        .join("/");
+}
 
+function formatSize(bytes) {
+    if (bytes === undefined) return "";
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1048576)
+        return (bytes / 1024).toFixed(1) + " KB";
 
-// Dateityp und Icon bestimmen
+    return (bytes / 1048576).toFixed(2) + " MB";
+}
 
-function getIcon(filename) {
-    const ext = filename.split(".").pop().toLowerCase();
+function getIcon(name) {
+    const ext = name.split(".").pop().toLowerCase();
 
     const icons = {
-        png: "🖼️", jpg: "🖼️", jpeg: "🖼️",
-        webp: "🖼️", gif: "🖼️", svg: "🖼️",
-        html: "🌐", htm: "🌐",
+        html: "🌐",
         css: "🎨",
-        js: "⚙️", mjs: "⚙️",
+        js: "⚙️",
         json: "📋",
         pdf: "📕",
-        zip: "📦", rar: "📦", "7z": "📦",
-        txt: "📄", md: "📝",
-        mp3: "🎵", wav: "🎵",
-        mp4: "🎬", webm: "🎬",
-        csv: "📊",
-        xml: "📋"
+        png: "🖼️",
+        jpg: "🖼️",
+        jpeg: "🖼️",
+        gif: "🎞️",
+        svg: "🖼️",
+        mp4: "🎬",
+        txt: "📄",
+        md: "📝",
+        zip: "📦"
     };
 
     return icons[ext] || "📄";
 }
 
-function formatSize(bytes) {
-    if (bytes === undefined) return "";
-
-    if (bytes < 1024) return bytes + " B";
-    if (bytes < 1024 * 1024)
-        return (bytes / 1024).toFixed(1) + " KB";
-
-    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
-}
-
-
-// Dateien anzeigen
-
-function displayFiles(list) {
-    const container = document.getElementById("files");
-    container.innerHTML = "";
-
-    if (list.length === 0) {
-        container.textContent = "Keine Dateien gefunden.";
-        return;
-    }
-
-    list.forEach(file => {
-        const row = document.createElement("div");
-        row.className = "file";
-
-        const icon = document.createElement("div");
-        icon.className = "file-icon";
-        icon.textContent = getIcon(file.path);
-
-        const info = document.createElement("div");
-        info.className = "file-info";
-
-        const name = document.createElement("div");
-        name.className = "file-name";
-        name.textContent = file.path.split("/").pop();
-
-        const path = document.createElement("div");
-        path.className = "file-path";
-        path.textContent = file.path;
-
-        info.appendChild(name);
-        info.appendChild(path);
-
-        const size = document.createElement("div");
-        size.className = "file-size";
-        size.textContent = formatSize(file.size);
-
-        const link = document.createElement("a");
-
-        const encodedBranch = branch.split("/")
-            .map(encodeURIComponent).join("/");
-
-        const encodedPath = file.path.split("/")
-            .map(encodeURIComponent).join("/");
-
-        link.href =
-            `https://github.com/${owner}/${repo}/blob/${encodedBranch}/${encodedPath}`;
-
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        link.textContent = "Öffnen ↗";
-
-        row.appendChild(icon);
-        row.appendChild(info);
-        row.appendChild(size);
-        row.appendChild(link);
-
-        container.appendChild(row);
-    });
-}
-
-
-// Alle Dateien aus dem Repository laden
-
 async function loadFiles() {
     const status = document.getElementById("status");
+    const list = document.getElementById("files");
+
+    status.textContent = "Dateien werden geladen...";
+    list.replaceChildren();
 
     try {
-        const repoResponse = await fetch(api);
+        const headers = {
+            Accept: "application/vnd.github+json"
+        };
+
+        const repoResponse = await fetch(
+            `https://api.github.com/repos/${OWNER}/${REPO}`,
+            { headers }
+        );
 
         if (!repoResponse.ok) {
-            throw new Error(
-                "Repository nicht gefunden oder nicht öffentlich."
-            );
+            throw new Error("Repository nicht gefunden oder API-Limit erreicht.");
         }
 
         const repoData = await repoResponse.json();
         branch = repoData.default_branch;
 
         const treeResponse = await fetch(
-            `${api}/git/trees/${encodeURIComponent(branch)}?recursive=1`
+            `https://api.github.com/repos/${OWNER}/${REPO}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
+            { headers }
         );
 
         if (!treeResponse.ok) {
@@ -299,48 +229,100 @@ async function loadFiles() {
 
         const tree = await treeResponse.json();
 
-        allFiles = tree.tree.filter(item =>
-            item.type === "blob"
-        );
+        allFiles = tree.tree
+            .filter(item => item.type === "blob")
+            .sort((a, b) => a.path.localeCompare(
+                b.path, "de", { sensitivity: "base" }
+            ));
 
         status.textContent =
-            allFiles.length + " Dateien gefunden.";
+            allFiles.length + " Dateien gefunden";
 
         if (tree.truncated) {
             status.textContent +=
-                " Achtung: Die GitHub-Dateiliste wurde abgeschnitten.";
+                " – Hinweis: Die GitHub-Dateiliste wurde gekürzt.";
         }
 
-        displayFiles(allFiles);
+        renderFiles();
 
     } catch (error) {
         status.textContent = "Fehler: " + error.message;
+        list.textContent =
+            "Überprüfe den Repository-Namen und deine Internetverbindung.";
     }
 }
 
+function renderFiles() {
+    const list = document.getElementById("files");
+    const search = document.getElementById("search")
+        .value.toLowerCase().trim();
 
-// Live-Suche
+    list.replaceChildren();
 
-document.getElementById("search").addEventListener(
-    "input",
-    function() {
-        const query = this.value.toLowerCase();
+    const filtered = allFiles.filter(file =>
+        file.path.toLowerCase().includes(search)
+    );
 
-        const filtered = allFiles.filter(file =>
-            file.path.toLowerCase().includes(query)
-        );
+    document.getElementById("status").textContent =
+        filtered.length + " von " + allFiles.length + " Dateien";
 
-        displayFiles(filtered);
-
-        document.getElementById("status").textContent =
-            filtered.length + " von " + allFiles.length +
-            " Dateien angezeigt.";
+    if (filtered.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = "Keine Dateien gefunden.";
+        list.appendChild(empty);
+        return;
     }
-);
+
+    filtered.forEach(file => {
+        const name = file.path.split("/").pop();
+        const folder = file.path.includes("/")
+            ? file.path.substring(0, file.path.lastIndexOf("/"))
+            : "Hauptverzeichnis";
+
+        const link = document.createElement("a");
+        link.className = "file";
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+
+        link.href =
+            `https://github.com/${OWNER}/${REPO}/blob/` +
+            encodePath(branch) + "/" + encodePath(file.path);
+
+        const icon = document.createElement("div");
+        icon.className = "icon";
+        icon.textContent = getIcon(name);
+
+        const details = document.createElement("div");
+        details.className = "details";
+
+        const filename = document.createElement("div");
+        filename.className = "filename";
+        filename.textContent = name;
+
+        const path = document.createElement("div");
+        path.className = "path";
+        path.textContent = folder;
+
+        details.append(filename, path);
+
+        const size = document.createElement("div");
+        size.className = "size";
+        size.textContent = formatSize(file.size);
+
+        link.append(icon, details, size);
+        list.appendChild(link);
+    });
+}
+
+document.getElementById("search")
+    .addEventListener("input", renderFiles);
 
 loadFiles();
-
 </script>
+
+</body>
+</html>
 
 </body>
 </html>
